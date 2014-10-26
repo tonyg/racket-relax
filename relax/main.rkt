@@ -32,9 +32,12 @@
 	 constrainable?
 	 constrainable-value-ref
 	 apply-constraint-delta!
+	 constraint-delta
 	 @
 
 	 (struct-out readonly-view)
+
+	 (struct-out prioritize-constraint)
 
 	 solve-constraints-one-iteration!
 	 solve-constraints/timeout!)
@@ -66,8 +69,39 @@
 	 (define (apply-constraint-delta! self key delta)
 	   (void))])
 
+(define-syntax constraint-delta
+  (syntax-rules ()
+    [(_ [target updates ...] ...)
+     (compile-constraint-delta (hasheq) [target updates ...] ...)]))
+
+(define-syntax compile-constraint-delta
+  (syntax-rules (<-)
+    [(_ (forms ...))
+     (forms ...)]
+    [(_ (forms ...) [target <- expr] rest ...)
+     (compile-constraint-delta (forms ... target expr)
+			       rest ...)]
+    [(_ (forms ...) [target [key val] ...] rest ...)
+     (compile-constraint-delta (forms ... target (compile-individual-patch (hash) [key val] ...))
+			       rest ...)]))
+
+(define-syntax compile-individual-patch
+  (syntax-rules ()
+    [(_ (forms ...))
+     (forms ...)]
+    [(_ (forms ...) [key val] rest ...)
+     (compile-individual-patch (forms ... 'key val) rest ...)]))
+
 (define-syntax-rule (@ value key)
   (constrainable-value-ref value 'key))
+
+(struct prioritize-constraint (priority c) #:transparent
+	#:methods gen:constraint
+	[(define/generic super-compute compute-constraint-deltas)
+	 (define (constraint-priority self)
+	   (prioritize-constraint-priority self))
+	 (define (compute-constraint-deltas self t)
+	   (super-compute (prioritize-constraint-c self) t))])
 
 (define default-epsilon (make-parameter 0.01))
 (define default-rho (make-parameter 0.25))

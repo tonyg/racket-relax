@@ -24,6 +24,8 @@
 
 (provide (struct-out point)
 	 (struct-out point-median)
+	 polar-point
+	 polar-point/degrees
 	 point->hash
 	 point+
 	 point-
@@ -36,6 +38,8 @@
 	 point-rotate-around)
 
 (require racket/match)
+(require racket/generic)
+(require (only-in racket/math pi))
 (require "main.rkt")
 
 (struct point ([x #:mutable]
@@ -51,6 +55,13 @@
 	   (match key
 	     ['x (set-point-x! self (+ (point-x self) delta))]
 	     ['y (set-point-y! self (+ (point-y self) delta))]))])
+
+(define (polar-point r theta)
+  (point (* r (cos theta))
+	 (* r (sin theta))))
+
+(define (polar-point/degrees r theta)
+  (polar-point r (* theta (/ pi 180))))
 
 (define (point->hash p)
   (hash 'x (@ p x)
@@ -102,11 +113,12 @@
 (struct point-median (a b)
 	#:transparent
 	#:methods gen:constrainable
-	[(define (constrainable-value-ref self key)
+	[(define/generic super-apply apply-constraint-delta!)
+	 (define (constrainable-value-ref self key)
 	   (match-define (point-median a b) self)
 	   (match key
 	     ['x (@ (midpoint a b) x)]
 	     ['y (@ (midpoint a b) y)]))
 	 (define (apply-constraint-delta! self key delta)
-	   (apply-constraint-delta! (point-median-a self) key delta)
-	   (apply-constraint-delta! (point-median-b self) key delta))])
+	   (super-apply (point-median-a self) key delta)
+	   (super-apply (point-median-b self) key delta))])
