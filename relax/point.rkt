@@ -23,10 +23,12 @@
 ;; THE SOFTWARE.
 
 (provide (struct-out point)
+	 (struct-out point-median)
 	 point->hash
 	 point+
 	 point-
 	 point*
+	 point-copy
 	 midpoint
 	 point-magnitude
 	 point-normalize
@@ -66,6 +68,9 @@
   (point (* scalar (@ p x))
 	 (* scalar (@ p y))))
 
+(define (point-copy p)
+  (point (@ p x) (@ p y)))
+
 (define (midpoint a b)
   (point (* 0.5 (+ (@ a x) (@ b x)))
 	 (* 0.5 (+ (@ a y) (@ b y)))))
@@ -76,7 +81,10 @@
   (sqrt (+ (* x x) (* y y))))
 
 (define (point-normalize p)
-  (point* (/ (point-magnitude p)) p))
+  (define m (point-magnitude p))
+  (if (zero? m)
+      (point 1 0)
+      (point* (/ m) p)))
 
 (define (point-rotate p theta)
   (define c (cos theta))
@@ -90,3 +98,15 @@
   (point+ axis
 	  (point-rotate (point- p axis)
 			theta)))
+
+(struct point-median (a b)
+	#:transparent
+	#:methods gen:constrainable
+	[(define (constrainable-value-ref self key)
+	   (match-define (point-median a b) self)
+	   (match key
+	     ['x (@ (midpoint a b) x)]
+	     ['y (@ (midpoint a b) y)]))
+	 (define (apply-constraint-delta! self key delta)
+	   (apply-constraint-delta! (point-median-a self) key delta)
+	   (apply-constraint-delta! (point-median-b self) key delta))])

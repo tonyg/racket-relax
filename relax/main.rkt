@@ -34,6 +34,8 @@
 	 apply-constraint-delta!
 	 @
 
+	 (struct-out readonly-view)
+
 	 solve-constraints-one-iteration!
 	 solve-constraints/timeout!)
 
@@ -47,7 +49,22 @@
 
 (define-generics constrainable
   (constrainable-value-ref constrainable key)
-  (apply-constraint-delta! constrainable key delta))
+  (apply-constraint-delta! constrainable key delta)
+  #:defaults ([box? (define (constrainable-value-ref self key)
+		      (unless (eq? key 'value) (error 'box "Illegal constrainable key ref ~v" key))
+		      (unbox self))
+		    (define (apply-constraint-delta! self key delta)
+		      (unless (eq? key 'value) (error 'box "Illegal constrainable key set ~v" key))
+		      (set-box! self (+ (unbox self) delta)))]))
+
+(struct readonly-view (underlying)
+	#:transparent
+	#:methods gen:constrainable
+	[(define/generic super-value constrainable-value-ref)
+	 (define (constrainable-value-ref self key)
+	   (super-value (readonly-view-underlying self) key))
+	 (define (apply-constraint-delta! self key delta)
+	   (void))])
 
 (define-syntax-rule (@ value key)
   (constrainable-value-ref value 'key))

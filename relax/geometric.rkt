@@ -26,18 +26,24 @@
 	 (struct-out prioritize-constraint)
 	 (struct-out fixed-coordinate-constraint)
 	 (struct-out coincidence-constraint)
-	 (struct-out length-constraint))
+	 (struct-out length-constraint)
+	 (struct-out difference-constraint)
+	 (struct-out orientation-constraint)
+	 (struct-out heading-constraint))
 
+(require racket/generic)
 (require racket/match)
+(require (only-in racket/math pi))
 (require "main.rkt")
 (require "point.rkt")
 
 (struct prioritize-constraint (priority c) #:transparent
 	#:methods gen:constraint
-	[(define (constraint-priority self)
+	[(define/generic super-compute compute-constraint-deltas)
+	 (define (constraint-priority self)
 	   (prioritize-constraint-priority self))
 	 (define (compute-constraint-deltas self t)
-	   (compute-constraint-deltas (prioritize-constraint-c self) t))])
+	   (super-compute (prioritize-constraint-c self) t))])
 
 (struct fixed-coordinate-constraint (target source) #:transparent
 	#:methods gen:constraint
@@ -64,3 +70,50 @@
 	   (define e12 (point* delta (point-normalize (point- p2 p1))))
 	   (hash p1 (point->hash e12)
 		 p2 (point->hash (point* -1 e12))))])
+
+(struct difference-constraint (b1 b2 l) #:transparent
+	#:methods gen:constraint
+	[(define (compute-constraint-deltas self t)
+	   (match-define (difference-constraint b1 b2 l) self)
+	   (define dist (abs (- (@ b2 value) (@ b1 value))))
+	   (define delta (/ (- dist (@ l value)) 2))
+	   (hash b1 (hash 'value delta)
+		 b2 (hash 'value (- delta))))])
+
+(define (safe-atan2 y x)
+  (if (and (zero? y) (zero? x))
+      0
+      (atan y x)))
+
+(define (normalize-angle a)
+  (if (negative? a)
+      (+ a (* 2 pi))
+      a))
+
+(struct orientation-constraint (p1 p2 p3 p4 theta) #:transparent
+	#:methods gen:constraint
+	[(define (compute-constraint-deltas self t)
+	   (match-define (orientation-constraint p1 p2 p3 p4 theta) self)
+	   (define v12 (point- p2 p1))
+	   (define a12 (safe-atan2 (point-y v12) (point-x v12)))
+	   (define m12 (point-median p1 p2))
+	   (define v34 (point- p4 p3))
+	   (define a34 (safe-atan2 (point-y v34) (point-x v34)))
+	   (define m34 (point-median p3 p4))
+	   (define current-theta (- (normalize-angle a12) (normalize-angle a34)))
+	   (define d-theta (- (normalize-angle theta) (normalize-angle current-theta)))
+	   (hash p1 (point->hash (point- (point-rotate-around p1 d-theta m12) p1))
+		 p2 (point->hash (point- (point-rotate-around p2 d-theta m12) p2))
+		 p3 (point->hash (point- (point-rotate-around p3 (- d-theta) m34) p3))
+		 p4 (point->hash (point- (point-rotate-around p4 (- d-theta) m34) p4))))])
+
+(struct heading-constraint (p1 p2 theta) #:transparent
+	#:methods gen:constraint
+	[(define (compute-constraint-deltas self t)
+	   (match-define (heading-constraint p1 p2 theta) self)
+	   (define v12 (point- p2 p1))
+	   (define a12 (safe-atan2 (point-y v12) (point-x v12)))
+	   (define m12 (point-median p1 p2))
+	   (define d-theta (- (normalize-angle theta) (normalize-angle a12)))
+	   (hash p1 (point->hash (point- (point-rotate-around p1 d-theta m12) p1))
+		 p2 (point->hash (point- (point-rotate-around p2 d-theta m12) p2))))])
