@@ -42,7 +42,7 @@
 	 solve-constraints-one-iteration!
 	 solve-constraints/timeout!)
 
-(require (only-in unstable/list group-by))
+(require (only-in racket/list group-by))
 (require racket/generic)
 
 (define-generics constraint
